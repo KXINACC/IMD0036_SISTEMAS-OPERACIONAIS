@@ -2,10 +2,8 @@
 #include <chrono>
 #include <fstream>
 #include <vector>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
+#include <windows.h>
+#include <process.h>
 #include <cstring>
 #include "matriz_utils.h"
 
@@ -21,6 +19,11 @@ struct DadosCompartilhados {
     int linha_fim;
     int processo_id;
 };
+
+// Variáveis globais para compartilhamento entre processos
+Matriz* g_matriz_A = nullptr;
+Matriz* g_matriz_B = nullptr;
+Matriz* g_matriz_C = nullptr;
 
 // Função para carregar matriz de arquivo
 Matriz* carregar_matriz_arquivo(const std::string& nome_arquivo) {
@@ -61,18 +64,20 @@ void multiplicar_faixa_linhas(Matriz* A, Matriz* B, Matriz* C, int linha_inicio,
     }
 }
 
-// Função executada por cada processo filho
-void processo_filho(Matriz* A, Matriz* B, Matriz* C, int linha_inicio, int linha_fim, int processo_id) {
-    std::cout << "Processo " << processo_id << " processando linhas " << linha_inicio 
-              << " a " << linha_fim - 1 << std::endl;
+// Função executada por cada processo filho (Windows)
+unsigned __stdcall processo_filho(void* param) {
+    DadosCompartilhados* dados = (DadosCompartilhados*)param;
     
-    multiplicar_faixa_linhas(A, B, C, linha_inicio, linha_fim);
+    std::cout << "Processo " << dados->processo_id << " processando linhas " << dados->linha_inicio 
+              << " a " << dados->linha_fim - 1 << std::endl;
     
-    std::cout << "Processo " << processo_id << " concluído" << std::endl;
-    exit(0);
+    multiplicar_faixa_linhas(g_matriz_A, g_matriz_B, g_matriz_C, dados->linha_inicio, dados->linha_fim);
+    
+    std::cout << "Processo " << dados->processo_id << " concluído" << std::endl;
+    return 0;
 }
 
-// Função principal de multiplicação paralela com processos
+// Função principal de multiplicação paralela com threads (Windows)
 Matriz* multiplicar_matrizes_paralelo_processos(Matriz* A, Matriz* B, int num_processos) {
     if (A->n_colunas != B->n_linhas) {
         std::cerr << "Erro: Dimensões incompatíveis para multiplicação" << std::endl;
@@ -84,40 +89,58 @@ Matriz* multiplicar_matrizes_paralelo_processos(Matriz* A, Matriz* B, int num_pr
         return nullptr;
     }
     
-    // Calcular quantas linhas cada processo vai processar
-    int linhas_por_processo = A->n_linhas / num_processos;
+    // Configurar variáveis globais para compartilhamento
+    g_matriz_A = A;
+    g_matriz_B = B;
+    g_matriz_C = C;
+    
+    // Calcular quantas linhas cada thread vai processar
+    int linhas_por_thread = A->n_linhas / num_processos;
     int linhas_restantes = A->n_linhas % num_processos;
     
-    std::vector<pid_t> pids(num_processos);
+    std::vector<HANDLE> threads(num_processos);
+    std::vector<DadosCompartilhados> dados(num_processos);
     int linha_atual = 0;
     
-    // Criar processos filhos
+    // Criar threads
     for (int i = 0; i < num_processos; i++) {
-        int linhas_para_este_processo = linhas_por_processo + (i < linhas_restantes ? 1 : 0);
-        int linha_fim = linha_atual + linhas_para_este_processo;
+        int linhas_para_este_thread = linhas_por_thread + (i < linhas_restantes ? 1 : 0);
+        int linha_fim = linha_atual + linhas_para_este_thread;
         
-        pid_t pid = fork();
+        // Configurar dados para a thread
+        dados[i].n_linhas_A = A->n_linhas;
+        dados[i].n_colunas_A = A->n_colunas;
+        dados[i].n_linhas_B = B->n_linhas;
+        dados[i].n_colunas_B = B->n_colunas;
+        dados[i].n_linhas_C = C->n_linhas;
+        dados[i].n_colunas_C = C->n_colunas;
+        dados[i].linha_inicio = linha_atual;
+        dados[i].linha_fim = linha_fim;
+        dados[i].processo_id = i;
         
-        if (pid == 0) {
-            // Processo filho
-            processo_filho(A, B, C, linha_atual, linha_fim, i);
-        } else if (pid > 0) {
-            // Processo pai
-            pids[i] = pid;
-            std::cout << "Criado processo " << i << " com PID " << pid << std::endl;
-        } else {
-            std::cerr << "Erro ao criar processo filho " << i << std::endl;
+        // Criar thread
+        threads[i] = (HANDLE)_beginthreadex(NULL, 0, processo_filho, &dados[i], 0, NULL);
+        
+        if (threads[i] == NULL) {
+            std::cerr << "Erro ao criar thread " << i << std::endl;
+            // Limpar threads já criadas
+            for (int j = 0; j < i; j++) {
+                CloseHandle(threads[j]);
+            }
             return nullptr;
         }
         
+        std::cout << "Criada thread " << i << " com handle " << threads[i] << std::endl;
         linha_atual = linha_fim;
     }
     
-    // Aguardar todos os processos filhos terminarem
+    // Aguardar todas as threads terminarem
+    WaitForMultipleObjects(num_processos, threads.data(), TRUE, INFINITE);
+    
+    // Fechar handles das threads
     for (int i = 0; i < num_processos; i++) {
-        int status;
-        waitpid(pids[i], &status, 0);
-        std::cout << "Processo " << i << " (PID " << pids[i] << ") terminou" << std::endl;
+        CloseHandle(threads[i]);
+        std::cout << "Thread " << i << " terminou" << std::endl;
     }
     
     return C;
