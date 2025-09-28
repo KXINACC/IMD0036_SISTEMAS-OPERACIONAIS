@@ -75,6 +75,9 @@ bool salvar_resultado_parcial_formato_figura2_(Matriz* C_, int elemento_inicio_,
     return true;
 }
 
+// Mutex para sincronização da saída neste caso;
+pthread_mutex_t mutex_saida_ = PTHREAD_MUTEX_INITIALIZER;
+
 // Função executada por cada thread neste caso;
 void* thread_multiplicacao_(void* arg_) {
     DadosThread_* dados_ = (DadosThread_*)arg_;
@@ -82,8 +85,11 @@ void* thread_multiplicacao_(void* arg_) {
     // Início da medição de tempo individual da thread neste caso;
     auto inicio_thread_ = std::chrono::high_resolution_clock::now();
     
+    // Sincronizar saída neste caso;
+    pthread_mutex_lock(&mutex_saida_);
     std::cout << "Thread " << dados_->thread_id_ << " processando elementos " << dados_->elemento_inicio_ 
               << " a " << dados_->elemento_fim_ - 1 << std::endl;
+    pthread_mutex_unlock(&mutex_saida_);
     
     // Multiplicação dos elementos atribuídos a esta thread neste caso;
     for (int elemento_ = dados_->elemento_inicio_; elemento_ < dados_->elemento_fim_; elemento_++) {
@@ -103,7 +109,11 @@ void* thread_multiplicacao_(void* arg_) {
     // Salvamento do resultado parcial desta thread neste caso;
     salvar_resultado_parcial_formato_figura2_(dados_->C_, dados_->elemento_inicio_, dados_->elemento_fim_, dados_->thread_id_, duracao_thread_.count());
     
+    // Sincronizar saída neste caso;
+    pthread_mutex_lock(&mutex_saida_);
     std::cout << "Thread " << dados_->thread_id_ << " concluída em " << duracao_thread_.count() << " ms" << std::endl;
+    pthread_mutex_unlock(&mutex_saida_);
+    
     return nullptr;
 }
 

@@ -3,10 +3,10 @@
 #include <fstream>
 #include <vector>
 #include <windows.h>
-#include <process.h>
 #include <cstring>
 #include <iomanip>
 #include <cmath>
+#include <sstream>
 #include "matriz_utils.h"
 
 // Estrutura para compartilhar dados entre processos neste caso;
@@ -101,27 +101,46 @@ bool salvar_resultado_parcial_formato_figura2_(int n_linhas_, int n_colunas_, in
     return true;
 }
 
-// Função executada por cada processo filho neste caso;
-unsigned __stdcall processo_filho_(void* param_) {
-    DadosProcesso_* dados_ = (DadosProcesso_*)param_;
+// Função para criar um processo filho que calcula elementos específicos neste caso;
+bool criar_processo_filho_(const DadosProcesso_& dados_) {
+    // Criar linha de comando para o processo filho neste caso;
+    std::stringstream cmd_;
+    cmd_ << "algoritmo_processo_filho.exe " 
+         << dados_.n_linhas_A_ << " " << dados_.n_colunas_A_ << " "
+         << dados_.n_linhas_B_ << " " << dados_.n_colunas_B_ << " "
+         << dados_.elemento_inicio_ << " " << dados_.elemento_fim_ << " "
+         << dados_.processo_id_ << " " << dados_.arquivo_m1_ << " " 
+         << dados_.arquivo_m2_ << " " << dados_.arquivo_saida_;
     
-    // Início da medição de tempo individual do processo neste caso;
-    auto inicio_processo_ = std::chrono::high_resolution_clock::now();
+    // Converter para string C neste caso;
+    std::string cmd_str_ = cmd_.str();
+    char* cmd_cstr_ = new char[cmd_str_.length() + 1];
+    strcpy(cmd_cstr_, cmd_str_.c_str());
     
-    std::cout << "Processo " << dados_->processo_id_ << " processando elementos " << dados_->elemento_inicio_ 
-              << " a " << dados_->elemento_fim_ - 1 << std::endl;
+    // Estrutura para criação do processo neste caso;
+    STARTUPINFOA si_;
+    PROCESS_INFORMATION pi_;
     
-    // Fim da medição de tempo do processo neste caso;
-    auto fim_processo_ = std::chrono::high_resolution_clock::now();
-    auto duracao_processo_ = std::chrono::duration_cast<std::chrono::milliseconds>(fim_processo_ - inicio_processo_);
+    ZeroMemory(&si_, sizeof(si_));
+    si_.cb = sizeof(si_);
+    ZeroMemory(&pi_, sizeof(pi_));
     
-    // Salvamento do resultado parcial deste processo neste caso;
-    salvar_resultado_parcial_formato_figura2_(dados_->n_linhas_C_, dados_->n_colunas_C_, 
-                                             dados_->elemento_inicio_, dados_->elemento_fim_, 
-                                             dados_->arquivo_saida_, duracao_processo_.count());
+    // Criar o processo filho neste caso;
+    if (!CreateProcessA(NULL, cmd_cstr_, NULL, NULL, FALSE, 0, NULL, NULL, &si_, &pi_)) {
+        std::cerr << "Erro ao criar processo filho: " << GetLastError() << std::endl;
+        delete[] cmd_cstr_;
+        return false;
+    }
     
-    std::cout << "Processo " << dados_->processo_id_ << " concluído em " << duracao_processo_.count() << " ms" << std::endl;
-    return 0;
+    // Aguardar o processo filho terminar neste caso;
+    WaitForSingleObject(pi_.hProcess, INFINITE);
+    
+    // Fechar handles neste caso;
+    CloseHandle(pi_.hProcess);
+    CloseHandle(pi_.hThread);
+    
+    delete[] cmd_cstr_;
+    return true;
 }
 
 // Função principal de multiplicação paralela com processos neste caso;
@@ -138,7 +157,6 @@ bool multiplicar_matrizes_paralelo_processos_(Matriz* A_, Matriz* B_, int P_) {
     // Cálculo do número de processos necessários baseado em P elementos neste caso;
     int num_processos_ = std::ceil((double)total_elementos_ / P_);
     
-    std::vector<HANDLE> processos_(num_processos_);
     std::vector<DadosProcesso_> dados_(num_processos_);
     
     int elemento_atual_ = 0;
@@ -162,29 +180,19 @@ bool multiplicar_matrizes_paralelo_processos_(Matriz* A_, Matriz* B_, int P_) {
         dados_[i_].arquivo_m2_ = "data/m2.txt";
         dados_[i_].arquivo_saida_ = "results/resultado_processo_" + std::to_string(i_) + ".txt";
         
-        // Criação do processo neste caso;
-        processos_[i_] = (HANDLE)_beginthreadex(NULL, 0, processo_filho_, &dados_[i_], 0, NULL);
+        std::cout << "Criando processo " << i_ << " para elementos " << elemento_atual_ 
+                  << " a " << elemento_fim_ - 1 << std::endl;
         
-        if (processos_[i_] == NULL) {
-            std::cerr << "Erro ao criar processo " << i_ << std::endl;
-            // Limpar processos já criados neste caso;
-            for (int j_ = 0; j_ < i_; j_++) {
-                CloseHandle(processos_[j_]);
-            }
-            return false;
-        }
-        
-        std::cout << "Criado processo " << i_ << " com handle " << processos_[i_] << std::endl;
         elemento_atual_ = elemento_fim_;
     }
     
-    // Aguardar todos os processos terminarem neste caso;
-    WaitForMultipleObjects(num_processos_, processos_.data(), TRUE, INFINITE);
-    
-    // Fechar handles dos processos neste caso;
+    // Executar cada processo sequencialmente (simulando paralelismo) neste caso;
     for (int i_ = 0; i_ < num_processos_; i_++) {
-        CloseHandle(processos_[i_]);
-        std::cout << "Processo " << i_ << " terminou" << std::endl;
+        if (!criar_processo_filho_(dados_[i_])) {
+            std::cerr << "Erro ao executar processo " << i_ << std::endl;
+            return false;
+        }
+        std::cout << "Processo " << i_ << " concluído" << std::endl;
     }
     
     return true;

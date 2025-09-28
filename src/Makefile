@@ -16,16 +16,18 @@ RESULTS_DIR = ../results
 AUXILIAR_SRC = auxiliar.cpp matriz_utils.cpp
 SEQUENCIAL_SRC = algoritmo_sequencial.cpp matriz_utils.cpp
 PARALELO_PROCESS_SRC = algoritmo_paralelo_process.cpp matriz_utils.cpp
+PARALELO_PROCESS_FILHO_SRC = algoritmo_processo_filho.cpp matriz_utils.cpp
 PARALELO_THREADS_SRC = algoritmo_paralelo_threads.cpp matriz_utils.cpp
 
 # Executáveis
 AUXILIAR = $(BIN_DIR)/auxiliar
 SEQUENCIAL = $(BIN_DIR)/algoritmo_sequencial
 PARALELO_PROCESS = $(BIN_DIR)/algoritmo_paralelo_process
+PARALELO_PROCESS_FILHO = $(BIN_DIR)/algoritmo_processo_filho
 PARALELO_THREADS = $(BIN_DIR)/algoritmo_paralelo_threads
 
 # Regra padrão
-all: $(AUXILIAR) $(SEQUENCIAL) $(PARALELO_PROCESS) $(PARALELO_THREADS)
+all: $(AUXILIAR) $(SEQUENCIAL) $(PARALELO_PROCESS) $(PARALELO_PROCESS_FILHO) $(PARALELO_THREADS)
 
 # Criar diretórios necessários
 $(BIN_DIR):
@@ -48,6 +50,10 @@ $(SEQUENCIAL): $(SEQUENCIAL_SRC) | $(BIN_DIR)
 # Compilar algoritmo paralelo com processos
 $(PARALELO_PROCESS): $(PARALELO_PROCESS_SRC) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(PARALELO_PROCESS_SRC)
+
+# Compilar processo filho
+$(PARALELO_PROCESS_FILHO): $(PARALELO_PROCESS_FILHO_SRC) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $@ $(PARALELO_PROCESS_FILHO_SRC)
 
 # Compilar algoritmo paralelo com threads
 $(PARALELO_THREADS): $(PARALELO_THREADS_SRC) | $(BIN_DIR)
