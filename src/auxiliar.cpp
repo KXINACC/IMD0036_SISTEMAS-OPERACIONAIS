@@ -35,7 +35,7 @@ int main(int argc_, char* argv_[]) {
     auto inicio_ = std::chrono::high_resolution_clock::now();
 
     std::string file_m1_ = "data/m1.txt";
-    Matriz* mat1_ = criar_matriz(n1_, m1_);
+    Matriz_* mat1_ = criar_matriz(n1_, m1_);
     if (mat1_ == nullptr) {
         std::cerr << "Erro ao criar a M1" << std::endl;
         return 1;
@@ -53,7 +53,7 @@ int main(int argc_, char* argv_[]) {
     liberar_matriz(mat1_); 
 
     std::string file_m2_ = "data/m2.txt";
-    Matriz* mat2_ = criar_matriz(n2_, m2_);
+    Matriz_* mat2_ = criar_matriz(n2_, m2_);
     if (mat2_ == nullptr) {
         std::cerr << "Erro ao criar M2" << std::endl;
         return 1;

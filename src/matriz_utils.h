@@ -4,18 +4,18 @@
 #include <vector> 
 #include <string>  
 
-struct Matriz {
-    int n_linhas;
-    int n_colunas;
-    std::vector<std::vector<double>> dados;
+struct Matriz_ {
+    int n_linhas_;
+    int n_colunas_;
+    std::vector<std::vector<double>> dados_;
 };
 
-Matriz* criar_matriz(int linhas_, int colunas_);
+Matriz_* criar_matriz(int linhas_, int colunas_);
 
-void liberar_matriz(Matriz* m_);
+void liberar_matriz(Matriz_* m_);
 
-void preencher_matriz(Matriz* m_);
+void preencher_matriz(Matriz_* m_);
 
-bool salvar_matriz_arquivo(Matriz* m_, const std::string& nome_arquivo_);
+bool salvar_matriz_arquivo(Matriz_* m_, const std::string& nome_arquivo_);
 
 #endif 

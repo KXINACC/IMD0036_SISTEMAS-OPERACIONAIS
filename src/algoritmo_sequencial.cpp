@@ -5,7 +5,7 @@
 #include "matriz_utils.h"
 
 // Função que lê uma matriz de um arquivo neste caso;
-Matriz* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
+Matriz_* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
     std::ifstream arquivo_(nome_arquivo_);
     if (!arquivo_.is_open()) {
         std::cerr << "Erro ao abrir arquivo: " << nome_arquivo_ << std::endl;
@@ -15,7 +15,7 @@ Matriz* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
     int linhas_, colunas_;
     arquivo_ >> linhas_ >> colunas_;
     
-    Matriz* m_ = criar_matriz(linhas_, colunas_);
+    Matriz_* m_ = criar_matriz(linhas_, colunas_);
     if (m_ == nullptr) {
         std::cerr << "Erro ao criar matriz" << std::endl;
         return nullptr;
@@ -24,7 +24,7 @@ Matriz* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
     // Lendo os valores da matriz do arquivo neste caso;
     for (int i_ = 0; i_ < linhas_; i_++) {
         for (int j_ = 0; j_ < colunas_; j_++) {
-            arquivo_ >> m_->dados[i_][j_];
+            arquivo_ >> m_->dados_[i_][j_];
         }
     }
     
@@ -33,30 +33,30 @@ Matriz* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
 }
 
 // Função que multiplica duas matrizes da forma tradicional neste caso;
-Matriz* multiplicar_matrizes_sequencial_(Matriz* A_, Matriz* B_) {
+Matriz_* multiplicar_matrizes_sequencial_(Matriz_* A_, Matriz_* B_) {
     // Primeiro vou verificar se as matrizes podem ser multiplicadas neste caso;
-    if (A_->n_colunas != B_->n_linhas) {
+    if (A_->n_colunas_ != B_->n_linhas_) {
         std::cerr << "Erro: Dimensões incompatíveis para multiplicação" << std::endl;
         return nullptr;
     }
     
-    Matriz* C_ = criar_matriz(A_->n_linhas, B_->n_colunas);
+    Matriz_* C_ = criar_matriz(A_->n_linhas_, B_->n_colunas_);
     if (C_ == nullptr) {
         return nullptr;
     }
     
     // Zerando todos os elementos da matriz resultado neste caso;
-    for (int i_ = 0; i_ < C_->n_linhas; i_++) {
-        for (int j_ = 0; j_ < C_->n_colunas; j_++) {
-            C_->dados[i_][j_] = 0.0;
+    for (int i_ = 0; i_ < C_->n_linhas_; i_++) {
+        for (int j_ = 0; j_ < C_->n_colunas_; j_++) {
+            C_->dados_[i_][j_] = 0.0;
         }
     }
     
     // Aqui é o algoritmo clássico de multiplicação de matrizes neste caso;
-    for (int i_ = 0; i_ < A_->n_linhas; i_++) {
-        for (int j_ = 0; j_ < B_->n_colunas; j_++) {
-            for (int k_ = 0; k_ < A_->n_colunas; k_++) {
-                C_->dados[i_][j_] += A_->dados[i_][k_] * B_->dados[k_][j_];
+    for (int i_ = 0; i_ < A_->n_linhas_; i_++) {
+        for (int j_ = 0; j_ < B_->n_colunas_; j_++) {
+            for (int k_ = 0; k_ < A_->n_colunas_; k_++) {
+                C_->dados_[i_][j_] += A_->dados_[i_][k_] * B_->dados_[k_][j_];
             }
         }
     }
@@ -65,7 +65,7 @@ Matriz* multiplicar_matrizes_sequencial_(Matriz* A_, Matriz* B_) {
 }
 
 // Função para salvar resultado no formato Figura 2 neste caso;
-bool salvar_resultado_formato_figura2_(Matriz* C_, const std::string& nome_arquivo_, long tempo_) {
+bool salvar_resultado_formato_figura2_(Matriz_* C_, const std::string& nome_arquivo_, long tempo_) {
     std::ofstream arquivo_(nome_arquivo_);
     if (!arquivo_.is_open()) {
         std::cerr << "Erro ao abrir arquivo para escrita: " << nome_arquivo_ << std::endl;
@@ -73,12 +73,12 @@ bool salvar_resultado_formato_figura2_(Matriz* C_, const std::string& nome_arqui
     }
     
     // Escrita das dimensões da matriz resultado neste caso;
-    arquivo_ << C_->n_linhas << " " << C_->n_colunas << "\n";
+    arquivo_ << C_->n_linhas_ << " " << C_->n_colunas_ << "\n";
     
     // Escrita dos elementos no formato cnm valor neste caso;
-    for (int i_ = 0; i_ < C_->n_linhas; i_++) {
-        for (int j_ = 0; j_ < C_->n_colunas; j_++) {
-            arquivo_ << "c" << (i_ + 1) << (j_ + 1) << " " << std::fixed << std::setprecision(4) << C_->dados[i_][j_] << "\n";
+    for (int i_ = 0; i_ < C_->n_linhas_; i_++) {
+        for (int j_ = 0; j_ < C_->n_colunas_; j_++) {
+            arquivo_ << "c" << (i_ + 1) << (j_ + 1) << " " << std::fixed << std::setprecision(4) << C_->dados_[i_][j_] << "\n";
         }
     }
     
@@ -100,26 +100,26 @@ int main(int argc_, char* argv_[]) {
     std::string arquivo_m2_ = argv_[2];
     
     // Carregamento das matrizes de entrada neste caso;
-    Matriz* m1_ = carregar_matriz_arquivo_(arquivo_m1_);
+    Matriz_* m1_ = carregar_matriz_arquivo_(arquivo_m1_);
     if (m1_ == nullptr) {
         std::cerr << "Erro ao carregar matriz 1" << std::endl;
         return 1;
     }
     
-    Matriz* m2_ = carregar_matriz_arquivo_(arquivo_m2_);
+    Matriz_* m2_ = carregar_matriz_arquivo_(arquivo_m2_);
     if (m2_ == nullptr) {
         std::cerr << "Erro ao carregar matriz 2" << std::endl;
         liberar_matriz(m1_);
         return 1;
     }
     
-    std::cout << "Multiplicando matrizes " << m1_->n_linhas << "x" << m1_->n_colunas 
-              << " e " << m2_->n_linhas << "x" << m2_->n_colunas << " sequencialmente..." << std::endl;
+    std::cout << "Multiplicando matrizes " << m1_->n_linhas_ << "x" << m1_->n_colunas_ 
+              << " e " << m2_->n_linhas_ << "x" << m2_->n_colunas_ << " sequencialmente..." << std::endl;
     
     // Medição do tempo de execução da multiplicação neste caso;
     auto inicio_ = std::chrono::high_resolution_clock::now();
     
-    Matriz* resultado_ = multiplicar_matrizes_sequencial_(m1_, m2_);
+    Matriz_* resultado_ = multiplicar_matrizes_sequencial_(m1_, m2_);
     
     auto fim_ = std::chrono::high_resolution_clock::now();
     auto duracao_ = std::chrono::duration_cast<std::chrono::milliseconds>(fim_ - inicio_);

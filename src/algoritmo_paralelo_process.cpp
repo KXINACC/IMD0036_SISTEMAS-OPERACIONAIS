@@ -25,17 +25,8 @@ struct DadosProcesso_ {
     std::string arquivo_saida_;
 };
 
-// Função para calcular elemento da matriz resultado neste caso;
-double calcular_elemento_matriz_(Matriz* A_, Matriz* B_, int i_, int j_) {
-    double resultado_ = 0.0;
-    for (int k_ = 0; k_ < A_->n_colunas; k_++) {
-        resultado_ += A_->dados[i_][k_] * B_->dados[k_][j_];
-    }
-    return resultado_;
-}
-
 // Função para carregar matriz de um arquivo neste caso;
-Matriz* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
+Matriz_* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
     std::ifstream arquivo_(nome_arquivo_);
     if (!arquivo_.is_open()) {
         std::cerr << "Erro ao abrir arquivo: " << nome_arquivo_ << std::endl;
@@ -45,7 +36,7 @@ Matriz* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
     int linhas_, colunas_;
     arquivo_ >> linhas_ >> colunas_;
     
-    Matriz* m_ = criar_matriz(linhas_, colunas_);
+    Matriz_* m_ = criar_matriz(linhas_, colunas_);
     if (m_ == nullptr) {
         std::cerr << "Erro ao criar matriz" << std::endl;
         return nullptr;
@@ -54,12 +45,21 @@ Matriz* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
     // Leitura dos dados da matriz do arquivo neste caso;
     for (int i_ = 0; i_ < linhas_; i_++) {
         for (int j_ = 0; j_ < colunas_; j_++) {
-            arquivo_ >> m_->dados[i_][j_];
+            arquivo_ >> m_->dados_[i_][j_];
         }
     }
     
     arquivo_.close();
     return m_;
+}
+
+// Função para calcular elemento da matriz resultado neste caso;
+double calcular_elemento_matriz_(Matriz_* A_, Matriz_* B_, int i_, int j_) {
+    double resultado_ = 0.0;
+    for (int k_ = 0; k_ < A_->n_colunas_; k_++) {
+        resultado_ += A_->dados_[i_][k_] * B_->dados_[k_][j_];
+    }
+    return resultado_;
 }
 
 // Função para salvar resultado parcial no formato da Figura 2 neste caso;
@@ -75,8 +75,8 @@ bool salvar_resultado_parcial_formato_figura2_(int n_linhas_, int n_colunas_, in
     arquivo_ << n_linhas_ << " " << n_colunas_ << "\n";
     
     // Carregamento das matrizes para calcular os elementos neste caso;
-    Matriz* A_ = carregar_matriz_arquivo_("data/m1.txt");
-    Matriz* B_ = carregar_matriz_arquivo_("data/m2.txt");
+    Matriz_* A_ = carregar_matriz_arquivo_("data/m1.txt");
+    Matriz_* B_ = carregar_matriz_arquivo_("data/m2.txt");
     
     if (A_ == nullptr || B_ == nullptr) {
         std::cerr << "Erro ao carregar matrizes para cálculo" << std::endl;
@@ -84,7 +84,7 @@ bool salvar_resultado_parcial_formato_figura2_(int n_linhas_, int n_colunas_, in
         return false;
     }
     
-    // Escrita dos elementos calculados por este processo neste caso;
+    // Escrita dos elementos calculados por este processo no formato Figura 2 neste caso;
     for (int elemento_ = elemento_inicio_; elemento_ < elemento_fim_; elemento_++) {
         int i_ = elemento_ / n_colunas_;
         int j_ = elemento_ % n_colunas_;
@@ -116,24 +116,29 @@ unsigned __stdcall processo_filho_(void* param_) {
     auto duracao_processo_ = std::chrono::duration_cast<std::chrono::milliseconds>(fim_processo_ - inicio_processo_);
     
     // Salvamento do resultado parcial deste processo neste caso;
-    salvar_resultado_parcial_formato_figura2_(dados_->n_linhas_C_, dados_->n_colunas_C_, 
-                                             dados_->elemento_inicio_, dados_->elemento_fim_, 
-                                             dados_->arquivo_saida_, duracao_processo_.count());
+    bool sucesso_ = salvar_resultado_parcial_formato_figura2_(dados_->n_linhas_C_, dados_->n_colunas_C_, 
+                                                             dados_->elemento_inicio_, dados_->elemento_fim_, 
+                                                             dados_->arquivo_saida_, duracao_processo_.count());
     
-    std::cout << "Processo " << dados_->processo_id_ << " concluído em " << duracao_processo_.count() << " ms" << std::endl;
+    if (sucesso_) {
+        std::cout << "Processo " << dados_->processo_id_ << " concluído em " << duracao_processo_.count() << " ms" << std::endl;
+    } else {
+        std::cerr << "Erro ao salvar resultado do processo " << dados_->processo_id_ << std::endl;
+    }
+    
     return 0;
 }
 
 // Função principal de multiplicação paralela com processos neste caso;
-bool multiplicar_matrizes_paralelo_processos_(Matriz* A_, Matriz* B_, int P_) {
+bool multiplicar_matrizes_paralelo_processos_(Matriz_* A_, Matriz_* B_, int P_) {
     // Verificação da compatibilidade das dimensões neste caso;
-    if (A_->n_colunas != B_->n_linhas) {
+    if (A_->n_colunas_ != B_->n_linhas_) {
         std::cerr << "Erro: Dimensões incompatíveis para multiplicação" << std::endl;
         return false;
     }
     
     // Cálculo do número total de elementos da matriz resultado neste caso;
-    int total_elementos_ = A_->n_linhas * B_->n_colunas;
+    int total_elementos_ = A_->n_linhas_ * B_->n_colunas_;
     
     // Cálculo do número de processos necessários baseado em P elementos neste caso;
     int num_processos_ = std::ceil((double)total_elementos_ / P_);
@@ -149,12 +154,12 @@ bool multiplicar_matrizes_paralelo_processos_(Matriz* A_, Matriz* B_, int P_) {
         int elemento_fim_ = elemento_atual_ + elementos_para_este_processo_;
         
         // Configuração dos dados do processo neste caso;
-        dados_[i_].n_linhas_A_ = A_->n_linhas;
-        dados_[i_].n_colunas_A_ = A_->n_colunas;
-        dados_[i_].n_linhas_B_ = B_->n_linhas;
-        dados_[i_].n_colunas_B_ = B_->n_colunas;
-        dados_[i_].n_linhas_C_ = A_->n_linhas;
-        dados_[i_].n_colunas_C_ = B_->n_colunas;
+        dados_[i_].n_linhas_A_ = A_->n_linhas_;
+        dados_[i_].n_colunas_A_ = A_->n_colunas_;
+        dados_[i_].n_linhas_B_ = B_->n_linhas_;
+        dados_[i_].n_colunas_B_ = B_->n_colunas_;
+        dados_[i_].n_linhas_C_ = A_->n_linhas_;
+        dados_[i_].n_colunas_C_ = B_->n_colunas_;
         dados_[i_].elemento_inicio_ = elemento_atual_;
         dados_[i_].elemento_fim_ = elemento_fim_;
         dados_[i_].processo_id_ = i_;
@@ -208,21 +213,21 @@ int main(int argc_, char* argv_[]) {
     }
     
     // Carregamento das matrizes de entrada neste caso;
-    Matriz* m1_ = carregar_matriz_arquivo_(arquivo_m1_);
+    Matriz_* m1_ = carregar_matriz_arquivo_(arquivo_m1_);
     if (m1_ == nullptr) {
         std::cerr << "Erro ao carregar matriz 1" << std::endl;
         return 1;
     }
     
-    Matriz* m2_ = carregar_matriz_arquivo_(arquivo_m2_);
+    Matriz_* m2_ = carregar_matriz_arquivo_(arquivo_m2_);
     if (m2_ == nullptr) {
         std::cerr << "Erro ao carregar matriz 2" << std::endl;
         liberar_matriz(m1_);
         return 1;
     }
     
-    std::cout << "Multiplicando matrizes " << m1_->n_linhas << "x" << m1_->n_colunas 
-              << " e " << m2_->n_linhas << "x" << m2_->n_colunas 
+    std::cout << "Multiplicando matrizes " << m1_->n_linhas_ << "x" << m1_->n_colunas_ 
+              << " e " << m2_->n_linhas_ << "x" << m2_->n_colunas_ 
               << " com P=" << P_ << " elementos por processo..." << std::endl;
     
     // Medição do tempo de execução total neste caso;
@@ -249,4 +254,3 @@ int main(int argc_, char* argv_[]) {
     
     return 0;
 }
-

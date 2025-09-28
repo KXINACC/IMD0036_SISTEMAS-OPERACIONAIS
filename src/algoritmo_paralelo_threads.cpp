@@ -9,9 +9,9 @@
 
 // Estrutura para passar dados para as threads neste caso;
 struct DadosThread_ {
-    Matriz* A_;
-    Matriz* B_;
-    Matriz* C_;
+    Matriz_* A_;
+    Matriz_* B_;
+    Matriz_* C_;
     int elemento_inicio_;
     int elemento_fim_;
     int thread_id_;
@@ -19,7 +19,7 @@ struct DadosThread_ {
 };
 
 // Função para carregar matriz de arquivo neste caso;
-Matriz* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
+Matriz_* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
     std::ifstream arquivo_(nome_arquivo_);
     if (!arquivo_.is_open()) {
         std::cerr << "Erro ao abrir arquivo: " << nome_arquivo_ << std::endl;
@@ -29,7 +29,7 @@ Matriz* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
     int linhas_, colunas_;
     arquivo_ >> linhas_ >> colunas_;
     
-    Matriz* m_ = criar_matriz(linhas_, colunas_);
+    Matriz_* m_ = criar_matriz(linhas_, colunas_);
     if (m_ == nullptr) {
         std::cerr << "Erro ao criar matriz" << std::endl;
         return nullptr;
@@ -38,7 +38,7 @@ Matriz* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
     // Carregamento dos dados da matriz do arquivo neste caso;
     for (int i_ = 0; i_ < linhas_; i_++) {
         for (int j_ = 0; j_ < colunas_; j_++) {
-            arquivo_ >> m_->dados[i_][j_];
+            arquivo_ >> m_->dados_[i_][j_];
         }
     }
     
@@ -47,7 +47,7 @@ Matriz* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
 }
 
 // Função para salvar resultado parcial no formato Figura 2 neste caso;
-bool salvar_resultado_parcial_formato_figura2_(Matriz* C_, int elemento_inicio_, int elemento_fim_, int thread_id_, long tempo_) {
+bool salvar_resultado_parcial_formato_figura2_(Matriz_* C_, int elemento_inicio_, int elemento_fim_, int thread_id_, long tempo_) {
     std::string nome_arquivo_ = "results/resultado_thread_" + std::to_string(thread_id_) + ".txt";
     std::ofstream arquivo_(nome_arquivo_);
     if (!arquivo_.is_open()) {
@@ -56,14 +56,14 @@ bool salvar_resultado_parcial_formato_figura2_(Matriz* C_, int elemento_inicio_,
     }
     
     // Escrita das dimensões da matriz resultado neste caso;
-    arquivo_ << C_->n_linhas << " " << C_->n_colunas << "\n";
+    arquivo_ << C_->n_linhas_ << " " << C_->n_colunas_ << "\n";
     
-    // Escrita dos elementos calculados por esta thread neste caso;
-    for (int i_ = 0; i_ < C_->n_linhas; i_++) {
-        for (int j_ = 0; j_ < C_->n_colunas; j_++) {
-            int elemento_atual_ = i_ * C_->n_colunas + j_;
+    // Escrita dos elementos calculados por esta thread no formato Figura 2 neste caso;
+    for (int i_ = 0; i_ < C_->n_linhas_; i_++) {
+        for (int j_ = 0; j_ < C_->n_colunas_; j_++) {
+            int elemento_atual_ = i_ * C_->n_colunas_ + j_;
             if (elemento_atual_ >= elemento_inicio_ && elemento_atual_ < elemento_fim_) {
-                arquivo_ << "c" << (i_ + 1) << (j_ + 1) << " " << std::fixed << std::setprecision(4) << C_->dados[i_][j_] << "\n";
+                arquivo_ << "c" << (i_ + 1) << (j_ + 1) << " " << std::fixed << std::setprecision(4) << C_->dados_[i_][j_] << "\n";
             }
         }
     }
@@ -87,12 +87,12 @@ void* thread_multiplicacao_(void* arg_) {
     
     // Multiplicação dos elementos atribuídos a esta thread neste caso;
     for (int elemento_ = dados_->elemento_inicio_; elemento_ < dados_->elemento_fim_; elemento_++) {
-        int i_ = elemento_ / dados_->B_->n_colunas;
-        int j_ = elemento_ % dados_->B_->n_colunas;
+        int i_ = elemento_ / dados_->B_->n_colunas_;
+        int j_ = elemento_ % dados_->B_->n_colunas_;
         
-        dados_->C_->dados[i_][j_] = 0.0;
-        for (int k_ = 0; k_ < dados_->A_->n_colunas; k_++) {
-            dados_->C_->dados[i_][j_] += dados_->A_->dados[i_][k_] * dados_->B_->dados[k_][j_];
+        dados_->C_->dados_[i_][j_] = 0.0;
+        for (int k_ = 0; k_ < dados_->A_->n_colunas_; k_++) {
+            dados_->C_->dados_[i_][j_] += dados_->A_->dados_[i_][k_] * dados_->B_->dados_[k_][j_];
         }
     }
     
@@ -108,20 +108,20 @@ void* thread_multiplicacao_(void* arg_) {
 }
 
 // Função principal de multiplicação paralela com threads neste caso;
-Matriz* multiplicar_matrizes_paralelo_threads_(Matriz* A_, Matriz* B_, int P_) {
+Matriz_* multiplicar_matrizes_paralelo_threads_(Matriz_* A_, Matriz_* B_, int P_) {
     // Verificação da compatibilidade das dimensões neste caso;
-    if (A_->n_colunas != B_->n_linhas) {
+    if (A_->n_colunas_ != B_->n_linhas_) {
         std::cerr << "Erro: Dimensões incompatíveis para multiplicação" << std::endl;
         return nullptr;
     }
     
-    Matriz* C_ = criar_matriz(A_->n_linhas, B_->n_colunas);
+    Matriz_* C_ = criar_matriz(A_->n_linhas_, B_->n_colunas_);
     if (C_ == nullptr) {
         return nullptr;
     }
     
     // Cálculo do número total de elementos da matriz resultado neste caso;
-    int total_elementos_ = A_->n_linhas * B_->n_colunas;
+    int total_elementos_ = A_->n_linhas_ * B_->n_colunas_;
     
     // Cálculo do número de threads necessárias baseado em P elementos neste caso;
     int num_threads_ = std::ceil((double)total_elementos_ / P_);
@@ -186,27 +186,27 @@ int main(int argc_, char* argv_[]) {
     }
     
     // Carregamento das matrizes de entrada neste caso;
-    Matriz* m1_ = carregar_matriz_arquivo_(arquivo_m1_);
+    Matriz_* m1_ = carregar_matriz_arquivo_(arquivo_m1_);
     if (m1_ == nullptr) {
         std::cerr << "Erro ao carregar matriz 1" << std::endl;
         return 1;
     }
     
-    Matriz* m2_ = carregar_matriz_arquivo_(arquivo_m2_);
+    Matriz_* m2_ = carregar_matriz_arquivo_(arquivo_m2_);
     if (m2_ == nullptr) {
         std::cerr << "Erro ao carregar matriz 2" << std::endl;
         liberar_matriz(m1_);
         return 1;
     }
     
-    std::cout << "Multiplicando matrizes " << m1_->n_linhas << "x" << m1_->n_colunas 
-              << " e " << m2_->n_linhas << "x" << m2_->n_colunas 
+    std::cout << "Multiplicando matrizes " << m1_->n_linhas_ << "x" << m1_->n_colunas_ 
+              << " e " << m2_->n_linhas_ << "x" << m2_->n_colunas_ 
               << " com P=" << P_ << " elementos por thread..." << std::endl;
     
     // Medição do tempo de execução total neste caso;
     auto inicio_ = std::chrono::high_resolution_clock::now();
     
-    Matriz* resultado_ = multiplicar_matrizes_paralelo_threads_(m1_, m2_, P_);
+    Matriz_* resultado_ = multiplicar_matrizes_paralelo_threads_(m1_, m2_, P_);
     
     auto fim_ = std::chrono::high_resolution_clock::now();
     auto duracao_ = std::chrono::duration_cast<std::chrono::milliseconds>(fim_ - inicio_);
