@@ -1,31 +1,24 @@
 #include <iostream>
 #include <chrono>
 #include <fstream>
+#include <pthread.h>
 #include <vector>
-#include <windows.h>
-#include <process.h>
-#include <cstring>
 #include <iomanip>
 #include <cmath>
 #include "matriz_utils.h"
 
-// Estrutura para compartilhar dados entre processos neste caso;
-struct DadosProcesso_ {
-    int n_linhas_A_;
-    int n_colunas_A_;
-    int n_linhas_B_;
-    int n_colunas_B_;
-    int n_linhas_C_;
-    int n_colunas_C_;
+// Estrutura para passar dados para as threads neste caso;
+struct DadosThread_ {
+    Matriz_* A_;
+    Matriz_* B_;
+    Matriz_* C_;
     int elemento_inicio_;
     int elemento_fim_;
-    int processo_id_;
-    std::string arquivo_m1_;
-    std::string arquivo_m2_;
-    std::string arquivo_saida_;
+    int thread_id_;
+    long tempo_inicio_;
 };
 
-// Função para carregar matriz de um arquivo neste caso;
+// Função para carregar matriz de arquivo neste caso;
 Matriz_* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
     std::ifstream arquivo_(nome_arquivo_);
     if (!arquivo_.is_open()) {
@@ -42,7 +35,7 @@ Matriz_* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
         return nullptr;
     }
     
-    // Leitura dos dados da matriz do arquivo neste caso;
+    // Carregamento dos dados da matriz do arquivo neste caso;
     for (int i_ = 0; i_ < linhas_; i_++) {
         for (int j_ = 0; j_ < colunas_; j_++) {
             arquivo_ >> m_->dados_[i_][j_];
@@ -53,146 +46,126 @@ Matriz_* carregar_matriz_arquivo_(const std::string& nome_arquivo_) {
     return m_;
 }
 
-// Função para calcular elemento da matriz resultado neste caso;
-double calcular_elemento_matriz_(Matriz_* A_, Matriz_* B_, int i_, int j_) {
-    double resultado_ = 0.0;
-    for (int k_ = 0; k_ < A_->n_colunas_; k_++) {
-        resultado_ += A_->dados_[i_][k_] * B_->dados_[k_][j_];
-    }
-    return resultado_;
-}
-
-// Função para salvar resultado parcial no formato da Figura 2 neste caso;
-bool salvar_resultado_parcial_formato_figura2_(int n_linhas_, int n_colunas_, int elemento_inicio_, int elemento_fim_, 
-                                              const std::string& arquivo_saida_, long tempo_) {
-    std::ofstream arquivo_(arquivo_saida_);
+// Função para salvar resultado parcial no formato Figura 2 neste caso;
+bool salvar_resultado_parcial_formato_figura2_(Matriz_* C_, int elemento_inicio_, int elemento_fim_, int thread_id_, long tempo_) {
+    std::string nome_arquivo_ = "results/resultado_thread_" + std::to_string(thread_id_) + ".txt";
+    std::ofstream arquivo_(nome_arquivo_);
     if (!arquivo_.is_open()) {
-        std::cerr << "Erro ao abrir arquivo para escrita: " << arquivo_saida_ << std::endl;
+        std::cerr << "Erro ao abrir arquivo para escrita: " << nome_arquivo_ << std::endl;
         return false;
     }
     
     // Escrita das dimensões da matriz resultado neste caso;
-    arquivo_ << n_linhas_ << " " << n_colunas_ << "\n";
+    arquivo_ << C_->n_linhas_ << " " << C_->n_colunas_ << "\n";
     
-    // Carregamento das matrizes para calcular os elementos neste caso;
-    Matriz_* A_ = carregar_matriz_arquivo_("data/m1.txt");
-    Matriz_* B_ = carregar_matriz_arquivo_("data/m2.txt");
-    
-    if (A_ == nullptr || B_ == nullptr) {
-        std::cerr << "Erro ao carregar matrizes para cálculo" << std::endl;
-        arquivo_.close();
-        return false;
+    // Escrita dos elementos calculados por esta thread no formato Figura 2 neste caso;
+    for (int i_ = 0; i_ < C_->n_linhas_; i_++) {
+        for (int j_ = 0; j_ < C_->n_colunas_; j_++) {
+            int elemento_atual_ = i_ * C_->n_colunas_ + j_;
+            if (elemento_atual_ >= elemento_inicio_ && elemento_atual_ < elemento_fim_) {
+                arquivo_ << "c" << (i_ + 1) << (j_ + 1) << " " << std::fixed << std::setprecision(4) << C_->dados_[i_][j_] << "\n";
+            }
+        }
     }
     
-    // Escrita dos elementos calculados por este processo no formato Figura 2 neste caso;
-    for (int elemento_ = elemento_inicio_; elemento_ < elemento_fim_; elemento_++) {
-        int i_ = elemento_ / n_colunas_;
-        int j_ = elemento_ % n_colunas_;
-        double valor_ = calcular_elemento_matriz_(A_, B_, i_, j_);
-        arquivo_ << "c" << (i_ + 1) << (j_ + 1) << " " << std::fixed << std::setprecision(4) << valor_ << "\n";
-    }
-    
-    // Escrita do tempo de cálculo deste processo neste caso;
+    // Escrita do tempo de cálculo desta thread neste caso;
     arquivo_ << tempo_;
     
     arquivo_.close();
-    liberar_matriz(A_);
-    liberar_matriz(B_);
     return true;
 }
 
-// Função executada por cada processo filho neste caso;
-unsigned __stdcall processo_filho_(void* param_) {
-    DadosProcesso_* dados_ = (DadosProcesso_*)param_;
+// Função executada por cada thread neste caso;
+void* thread_multiplicacao_(void* arg_) {
+    DadosThread_* dados_ = (DadosThread_*)arg_;
     
-    // Início da medição de tempo individual do processo neste caso;
-    auto inicio_processo_ = std::chrono::high_resolution_clock::now();
+    // Início da medição de tempo individual da thread neste caso;
+    auto inicio_thread_ = std::chrono::high_resolution_clock::now();
     
-    std::cout << "Processo " << dados_->processo_id_ << " processando elementos " << dados_->elemento_inicio_ 
+    std::cout << "Thread " << dados_->thread_id_ << " processando elementos " << dados_->elemento_inicio_ 
               << " a " << dados_->elemento_fim_ - 1 << std::endl;
     
-    // Fim da medição de tempo do processo neste caso;
-    auto fim_processo_ = std::chrono::high_resolution_clock::now();
-    auto duracao_processo_ = std::chrono::duration_cast<std::chrono::milliseconds>(fim_processo_ - inicio_processo_);
-    
-    // Salvamento do resultado parcial deste processo neste caso;
-    bool sucesso_ = salvar_resultado_parcial_formato_figura2_(dados_->n_linhas_C_, dados_->n_colunas_C_, 
-                                                             dados_->elemento_inicio_, dados_->elemento_fim_, 
-                                                             dados_->arquivo_saida_, duracao_processo_.count());
-    
-    if (sucesso_) {
-        std::cout << "Processo " << dados_->processo_id_ << " concluído em " << duracao_processo_.count() << " ms" << std::endl;
-    } else {
-        std::cerr << "Erro ao salvar resultado do processo " << dados_->processo_id_ << std::endl;
+    // Multiplicação dos elementos atribuídos a esta thread neste caso;
+    for (int elemento_ = dados_->elemento_inicio_; elemento_ < dados_->elemento_fim_; elemento_++) {
+        int i_ = elemento_ / dados_->B_->n_colunas_;
+        int j_ = elemento_ % dados_->B_->n_colunas_;
+        
+        dados_->C_->dados_[i_][j_] = 0.0;
+        for (int k_ = 0; k_ < dados_->A_->n_colunas_; k_++) {
+            dados_->C_->dados_[i_][j_] += dados_->A_->dados_[i_][k_] * dados_->B_->dados_[k_][j_];
+        }
     }
     
-    return 0;
+    // Fim da medição de tempo da thread neste caso;
+    auto fim_thread_ = std::chrono::high_resolution_clock::now();
+    auto duracao_thread_ = std::chrono::duration_cast<std::chrono::milliseconds>(fim_thread_ - inicio_thread_);
+    
+    // Salvamento do resultado parcial desta thread neste caso;
+    salvar_resultado_parcial_formato_figura2_(dados_->C_, dados_->elemento_inicio_, dados_->elemento_fim_, dados_->thread_id_, duracao_thread_.count());
+    
+    std::cout << "Thread " << dados_->thread_id_ << " concluída em " << duracao_thread_.count() << " ms" << std::endl;
+    return nullptr;
 }
 
-// Função principal de multiplicação paralela com processos neste caso;
-bool multiplicar_matrizes_paralelo_processos_(Matriz_* A_, Matriz_* B_, int P_) {
+// Função principal de multiplicação paralela com threads neste caso;
+Matriz_* multiplicar_matrizes_paralelo_threads_(Matriz_* A_, Matriz_* B_, int P_) {
     // Verificação da compatibilidade das dimensões neste caso;
     if (A_->n_colunas_ != B_->n_linhas_) {
         std::cerr << "Erro: Dimensões incompatíveis para multiplicação" << std::endl;
-        return false;
+        return nullptr;
+    }
+    
+    Matriz_* C_ = criar_matriz(A_->n_linhas_, B_->n_colunas_);
+    if (C_ == nullptr) {
+        return nullptr;
     }
     
     // Cálculo do número total de elementos da matriz resultado neste caso;
     int total_elementos_ = A_->n_linhas_ * B_->n_colunas_;
     
-    // Cálculo do número de processos necessários baseado em P elementos neste caso;
-    int num_processos_ = std::ceil((double)total_elementos_ / P_);
+    // Cálculo do número de threads necessárias baseado em P elementos neste caso;
+    int num_threads_ = std::ceil((double)total_elementos_ / P_);
     
-    std::vector<HANDLE> processos_(num_processos_);
-    std::vector<DadosProcesso_> dados_(num_processos_);
+    std::vector<pthread_t> threads_(num_threads_);
+    std::vector<DadosThread_> dados_threads_(num_threads_);
     
     int elemento_atual_ = 0;
     
-    // Criação dos processos com divisão por P elementos neste caso;
-    for (int i_ = 0; i_ < num_processos_; i_++) {
-        int elementos_para_este_processo_ = std::min(P_, total_elementos_ - elemento_atual_);
-        int elemento_fim_ = elemento_atual_ + elementos_para_este_processo_;
+    // Criação das threads com divisão por P elementos neste caso;
+    for (int i_ = 0; i_ < num_threads_; i_++) {
+        int elementos_para_esta_thread_ = std::min(P_, total_elementos_ - elemento_atual_);
+        int elemento_fim_ = elemento_atual_ + elementos_para_esta_thread_;
         
-        // Configuração dos dados do processo neste caso;
-        dados_[i_].n_linhas_A_ = A_->n_linhas_;
-        dados_[i_].n_colunas_A_ = A_->n_colunas_;
-        dados_[i_].n_linhas_B_ = B_->n_linhas_;
-        dados_[i_].n_colunas_B_ = B_->n_colunas_;
-        dados_[i_].n_linhas_C_ = A_->n_linhas_;
-        dados_[i_].n_colunas_C_ = B_->n_colunas_;
-        dados_[i_].elemento_inicio_ = elemento_atual_;
-        dados_[i_].elemento_fim_ = elemento_fim_;
-        dados_[i_].processo_id_ = i_;
-        dados_[i_].arquivo_m1_ = "data/m1.txt";
-        dados_[i_].arquivo_m2_ = "data/m2.txt";
-        dados_[i_].arquivo_saida_ = "results/resultado_processo_" + std::to_string(i_) + ".txt";
+        // Configuração dos dados da thread neste caso;
+        dados_threads_[i_].A_ = A_;
+        dados_threads_[i_].B_ = B_;
+        dados_threads_[i_].C_ = C_;
+        dados_threads_[i_].elemento_inicio_ = elemento_atual_;
+        dados_threads_[i_].elemento_fim_ = elemento_fim_;
+        dados_threads_[i_].thread_id_ = i_;
         
-        // Criação do processo neste caso;
-        processos_[i_] = (HANDLE)_beginthreadex(NULL, 0, processo_filho_, &dados_[i_], 0, NULL);
-        
-        if (processos_[i_] == NULL) {
-            std::cerr << "Erro ao criar processo " << i_ << std::endl;
-            // Limpar processos já criados neste caso;
-            for (int j_ = 0; j_ < i_; j_++) {
-                CloseHandle(processos_[j_]);
-            }
-            return false;
+        // Criação da thread neste caso;
+        if (pthread_create(&threads_[i_], nullptr, thread_multiplicacao_, &dados_threads_[i_]) != 0) {
+            std::cerr << "Erro ao criar thread " << i_ << std::endl;
+            return nullptr;
         }
         
-        std::cout << "Criado processo " << i_ << " com handle " << processos_[i_] << std::endl;
+        std::cout << "Criada thread " << i_ << " para processar elementos " << elemento_atual_ 
+                  << " a " << elemento_fim_ - 1 << std::endl;
+        
         elemento_atual_ = elemento_fim_;
     }
     
-    // Aguardar todos os processos terminarem neste caso;
-    WaitForMultipleObjects(num_processos_, processos_.data(), TRUE, INFINITE);
-    
-    // Fechar handles dos processos neste caso;
-    for (int i_ = 0; i_ < num_processos_; i_++) {
-        CloseHandle(processos_[i_]);
-        std::cout << "Processo " << i_ << " terminou" << std::endl;
+    // Aguardar todas as threads terminarem neste caso;
+    for (int i_ = 0; i_ < num_threads_; i_++) {
+        if (pthread_join(threads_[i_], nullptr) != 0) {
+            std::cerr << "Erro ao aguardar thread " << i_ << std::endl;
+        } else {
+            std::cout << "Thread " << i_ << " terminou" << std::endl;
+        }
     }
     
-    return true;
+    return C_;
 }
 
 int main(int argc_, char* argv_[]) {
@@ -228,17 +201,17 @@ int main(int argc_, char* argv_[]) {
     
     std::cout << "Multiplicando matrizes " << m1_->n_linhas_ << "x" << m1_->n_colunas_ 
               << " e " << m2_->n_linhas_ << "x" << m2_->n_colunas_ 
-              << " com P=" << P_ << " elementos por processo..." << std::endl;
+              << " com P=" << P_ << " elementos por thread..." << std::endl;
     
     // Medição do tempo de execução total neste caso;
     auto inicio_ = std::chrono::high_resolution_clock::now();
     
-    bool sucesso_ = multiplicar_matrizes_paralelo_processos_(m1_, m2_, P_);
+    Matriz_* resultado_ = multiplicar_matrizes_paralelo_threads_(m1_, m2_, P_);
     
     auto fim_ = std::chrono::high_resolution_clock::now();
     auto duracao_ = std::chrono::duration_cast<std::chrono::milliseconds>(fim_ - inicio_);
     
-    if (!sucesso_) {
+    if (resultado_ == nullptr) {
         std::cerr << "Erro na multiplicação" << std::endl;
         liberar_matriz(m1_);
         liberar_matriz(m2_);
@@ -246,11 +219,13 @@ int main(int argc_, char* argv_[]) {
     }
     
     std::cout << "Tempo total de execução: " << duracao_.count() << " ms" << std::endl;
-    std::cout << "Arquivos individuais dos processos salvos em results/resultado_processo_*.txt" << std::endl;
+    std::cout << "Arquivos individuais das threads salvos em results/resultado_thread_*.txt" << std::endl;
     
     // Liberação da memória alocada neste caso;
     liberar_matriz(m1_);
     liberar_matriz(m2_);
+    liberar_matriz(resultado_);
     
     return 0;
 }
+
