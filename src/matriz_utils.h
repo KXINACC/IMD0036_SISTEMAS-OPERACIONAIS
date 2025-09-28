@@ -10,16 +10,12 @@ struct Matriz {
     std::vector<std::vector<double>> dados;
 };
 
-//Vetor
-Matriz* criar_matriz(int linhas, int colunas);
+Matriz* criar_matriz(int linhas_, int colunas_);
 
+void liberar_matriz(Matriz* m_);
 
-void liberar_matriz(Matriz* m);
+void preencher_matriz(Matriz* m_);
 
-
-void preencher_matriz(Matriz* m);
-
-
-bool salvar_matriz_arquivo(Matriz* m, const std::string& nome_arquivo);
+bool salvar_matriz_arquivo(Matriz* m_, const std::string& nome_arquivo_);
 
 #endif 
